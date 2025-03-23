@@ -1,0 +1,10 @@
+(executable
+ (name main)
+ (modules ast lexer parser typecheck codegen main)
+ (libraries llvm llvm.analysis llvm.target llvm.executionengine))
+
+(menhir
+ (modules parser))
+
+(ocamllex
+ (modules lexer))

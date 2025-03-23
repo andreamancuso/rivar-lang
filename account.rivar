@@ -1,0 +1,6 @@
+class ACCOUNT
+
+feature
+    balance: INTEGER
+
+end

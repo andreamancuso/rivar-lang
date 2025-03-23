@@ -1,0 +1,26 @@
+# Dune build artifacts
+/_build/
+/.dune/
+
+# Merlin editor files
+*.merlin
+*.merlin-excerpts
+
+# Editor/IDE junk
+*.swp
+*.swo
+*.bak
+*~
+*.orig
+*.rej
+.DS_Store
+.vscode/
+.idea/
+
+# Menhir & ocamllex generated files (if committed)
+src/parser.ml
+src/parser.mli
+src/lexer.ml
+
+# OCaml opam local switch
+.opam/
