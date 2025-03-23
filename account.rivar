@@ -3,4 +3,12 @@ class ACCOUNT
 feature
     balance: INTEGER
 
+    deposit(amount: INTEGER)
+        require amount > 0
+        do
+            balance := balance + amount
+        ensure
+            balance = old balance + amount
+        end
+
 end

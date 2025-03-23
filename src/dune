@@ -1,6 +1,6 @@
 (executable
  (name main)
- (modules ast lexer parser typecheck codegen main)
+ (modules ast lexer parser_support parser typecheck codegen main)
  (libraries llvm llvm.analysis llvm.target llvm.executionengine))
 
 (menhir

@@ -82,7 +82,7 @@ Contracts aren’t optional—they are the code.
 
 ---
 
-## 🖜 Coming Soon
+## Coming Soon
 
 - Full method parsing with `require`/`do`/`ensure`
 - Control flow + expressions
