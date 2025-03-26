@@ -24,3 +24,6 @@ src/lexer.ml
 
 # OCaml opam local switch
 .opam/
+
+*.c
+*.h

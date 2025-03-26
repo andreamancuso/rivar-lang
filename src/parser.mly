@@ -1,6 +1,21 @@
 %{
 open Ast
 open Parser_support
+
+module VarEnv = struct
+  let params = ref []
+  let fields = ref []
+
+  let reset () = params := []; fields := []
+
+  let add_param name = params := name :: !params
+  let add_field name = fields := name :: !fields
+
+  let classify name =
+    if List.mem name !params then Param
+    else if List.mem name !fields then Field
+    else Local  (* fallback *)
+end
 %}
 
 %token <string> IDENT
@@ -29,6 +44,7 @@ class_decl_list:
 
 class_decl:
   | CLASS IDENT feature_block END {
+      VarEnv.reset ();
       {
         class_name = $2;
         features = $3;
@@ -43,7 +59,10 @@ feature_list:
   | feature_decl feature_list { $1 :: $2 }
 
 feature_decl:
-  | IDENT COLON type_expr { Field($1, $3) }
+  | IDENT COLON type_expr {
+      VarEnv.add_field $1;
+      Field($1, $3)
+  }
   | IDENT LPAREN param_list RPAREN routine_body {
       let body_block = $5 in
       Routine {
@@ -62,7 +81,10 @@ param_list:
   | param COMMA param_list { $1 :: $3 }
 
 param:
-  | IDENT COLON type_expr { { param_name = $1; param_type = $3 } }
+  | IDENT COLON type_expr {
+      VarEnv.add_param $1;
+      { param_name = $1; param_type = $3 }
+  }
 
 routine_body:
   | REQUIRE expr_list DO stmt_list ENSURE expr_list END {
@@ -82,7 +104,7 @@ stmt:
 
 expr:
   | INT { IntLit(int_of_string $1) }
-  | IDENT { Var($1) }
+  | IDENT { Var (VarEnv.classify $1, $1) }
   | OLD IDENT { Old($2) }
   | expr PLUS expr { BinOp(Add, $1, $3) }
   | expr MINUS expr { BinOp(Sub, $1, $3) }

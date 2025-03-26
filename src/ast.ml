@@ -1,6 +1,12 @@
 type type_expr =
   | TypeInteger
   | TypeBoolean
+  | TypeString
+
+type var_context =
+  | Local
+  | Param
+  | Field
 
 type bin_op =
   | Add | Sub | Mul | Div
@@ -13,7 +19,8 @@ type unary_op =
 type expr =
   | IntLit of int
   | BoolLit of bool
-  | Var of string
+  | StringLit of string
+  | Var of var_context * string
   | BinOp of bin_op * expr * expr
   | UnaryOp of unary_op * expr
   | Call of expr * string * expr list
@@ -24,22 +31,25 @@ type stmt =
   | If of expr * stmt list * stmt list option
   | While of expr * stmt list
   | Return of expr option
+  | Print of expr
 
 type param = {
   param_name : string;
   param_type : type_expr;
 }
 
+type routine = {
+  name : string;
+  params : param list;
+  return_type : type_expr option;
+  require : expr list;
+  body : stmt list;
+  ensure : expr list;
+}
+
 type feature_decl =
   | Field of string * type_expr
-  | Routine of {
-      name : string;
-      params : param list;
-      return_type : type_expr option;
-      require : expr list;
-      body : stmt list;
-      ensure : expr list;
-    }
+  | Routine of routine
 
 type class_decl = {
   class_name : string;

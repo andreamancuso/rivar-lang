@@ -1,8 +1,11 @@
 open Ast
+open Codegen
+
 
 let string_of_type = function
   | TypeInteger -> "INTEGER"
   | TypeBoolean -> "BOOLEAN"
+  | TypeString -> "STRING"
 
 let print_param { param_name; param_type } =
   Printf.printf "      Param: %s : %s\n" param_name (string_of_type param_type)
@@ -10,7 +13,10 @@ let print_param { param_name; param_type } =
 let rec string_of_expr = function
   | IntLit i -> string_of_int i
   | BoolLit b -> string_of_bool b
-  | Var name -> name
+  | StringLit s -> "\"" ^ s ^ "\""
+  | Var (Field, name) -> "this->" ^ name
+  | Var (Param, name) -> name
+  | Var (Local, name) -> name
   | Old name -> "old " ^ name
   | BinOp (op, lhs, rhs) ->
       let op_str = match op with
@@ -42,6 +48,8 @@ let rec print_stmt indent = function
       List.iter (print_stmt (indent ^ "  ")) body
   | Return (Some expr) ->
       Printf.printf "%sReturn: %s\n" indent (string_of_expr expr)
+  | Print expr ->
+      Printf.printf "%sPrint: %s\n" indent (string_of_expr expr)
   | Return None ->
       Printf.printf "%sReturn\n" indent
     
@@ -81,4 +89,7 @@ let () =
           Printf.printf "    Ensure:\n";
           List.iter print_expr r.ensure
     ) cls.features
-  ) ast
+  ) ast;
+
+  generate_c_file ast "out.c";
+  generate_h_file ast "out.h";

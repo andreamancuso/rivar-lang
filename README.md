@@ -1,5 +1,8 @@
 # Rivar
 
+gcc -std=c99 -shared -fPIC -o librivar.so out.c
+
+
 **Rivar** is a minimal, contract-first, class-based programming language inspired by Eiffel.  
 It is being built from scratch in OCaml with LLVM as the backend, designed to bring native **Design by Contract (DbC)** to the modern developer’s toolbox.
 
