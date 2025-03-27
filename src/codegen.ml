@@ -34,7 +34,7 @@ let string_of_type = function
   | TypeBoolean -> "bool"
   | TypeString -> "const char*"
 
-  let gen_stmt = function
+let gen_stmt = function
   | Assign (Var(_, name), expr) ->
       (match expr with
        | StringLit _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_expr expr)
@@ -43,8 +43,11 @@ let string_of_type = function
       sprintf "    %s = %s;\n" (string_of_expr lhs) (string_of_expr rhs)
   | Print expr ->
       sprintf "    printf(\"%%s\\n\", %s);\n" (string_of_expr expr)
+  | Return (Some expr) ->
+      sprintf "    return %s;\n" (string_of_expr expr)
+  | Return None ->
+      "    return;\n"
   | _ -> "    /* unsupported stmt */\n"
-
 
 let gen_routine class_name r cls_fields =
   let param_list =
@@ -54,7 +57,13 @@ let gen_routine class_name r cls_fields =
   in
   let buffer = Buffer.create 256 in
 
-  Buffer.add_string buffer (sprintf "void %s(%s* self, %s) {\n" r.name class_name param_list);
+  let signature =
+    if param_list = "" then
+      sprintf "void %s(%s* self)" r.name class_name
+    else
+      sprintf "void %s(%s* self, %s)" r.name class_name param_list
+  in
+  Buffer.add_string buffer (signature ^ " {\n");
 
   List.iter (fun e ->
     Buffer.add_string buffer (sprintf "    if (!(%s)) {\n" (string_of_expr e));
@@ -82,12 +91,44 @@ let gen_routine class_name r cls_fields =
     Buffer.add_string buffer (sprintf "    %s old_%s = self->%s;\n" field_type name name)
   ) used_old_vars;
 
-  List.iter (fun s -> Buffer.add_string buffer (gen_stmt s)) r.body;
+  let has_result =
+    match r.return_type with
+    | Some _ -> true
+    | None -> false
+  in
+
+  if has_result then
+    Buffer.add_string buffer (sprintf "    %s _result;\n" (string_of_type (Option.get r.return_type)));
+  
+  List.iter (fun stmt ->
+    match stmt with
+    | Return (Some expr) when has_result ->
+        Buffer.add_string buffer (sprintf "    _result = %s;\n    return _result;\n" (string_of_expr expr))
+    | Return None ->
+        Buffer.add_string buffer "    return;\n"
+    | _ ->
+        Buffer.add_string buffer (gen_stmt stmt)
+  ) r.body;
 
   List.iter (fun e ->
-    Buffer.add_string buffer (sprintf "    if (!(%s)) {\n" (string_of_expr e));
-    Buffer.add_string buffer "        fprintf(stderr, \"Postcondition failed\\n\");\n";
-    Buffer.add_string buffer "        exit(1);\n    }\n"
+    let skip =
+      match e with
+      | BinOp (_, Var (_, name), _) when name = "result" && not has_result -> true
+      | BinOp (_, _, Var (_, name)) when name = "result" && not has_result -> true
+      | _ -> false
+    in
+    if not skip then
+      let expr_str =
+        match e with
+        | BinOp (op, Var (_, "result"), rhs) ->
+            string_of_expr (BinOp (op, Var (Local, "_result"), rhs))
+        | BinOp (op, lhs, Var (_, "result")) ->
+            string_of_expr (BinOp (op, lhs, Var (Local, "_result")))
+        | _ -> string_of_expr e
+      in
+      Buffer.add_string buffer (sprintf "    if (!(%s)) {\n" expr_str);
+      Buffer.add_string buffer "        fprintf(stderr, \"Postcondition failed\\n\");\n";
+      Buffer.add_string buffer "        exit(1);\n    }\n"
   ) r.ensure;
 
   Buffer.add_string buffer "}\n";
@@ -95,33 +136,35 @@ let gen_routine class_name r cls_fields =
   Buffer.contents buffer
 
 let gen_header cls =
-    let class_name = String.uppercase_ascii cls.class_name in
-    let buf = Buffer.create 256 in
-    Buffer.add_string buf ("#ifndef RIVAR_H\n#define RIVAR_H\n\n");
-    Buffer.add_string buf ("#include <stdint.h>\n#include <stdbool.h>\n\n");
-    Buffer.add_string buf (sprintf "typedef struct {\n");
-    List.iter (function
-      | Field(name, t) ->
-          Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
-      | _ -> ()
-    ) cls.features;
-    Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
-    List.iter (function
-      | Routine r ->
-          let params =
-            String.concat ", " (List.map (fun p ->
-              sprintf "%s %s" (string_of_type p.param_type) p.param_name
-            ) r.params)
-          in
-          Buffer.add_string buf (sprintf "void %s(%s* self%s%s);\n"
-            r.name
-            class_name
-            (if params = "" then "" else ", ")
-            params)
-      | _ -> ()
-    ) cls.features;
-    Buffer.add_string buf ("\n#endif // RIVAR_H\n");
-    Buffer.contents buf
+  let class_name = String.uppercase_ascii cls.class_name in
+  let buf = Buffer.create 256 in
+  Buffer.add_string buf ("#ifndef RIVAR_H\n#define RIVAR_H\n\n");
+  Buffer.add_string buf ("#include <stdint.h>\n#include <stdbool.h>\n\n");
+  Buffer.add_string buf (sprintf "typedef struct {\n");
+  List.iter (function
+    | Field(name, t) ->
+        Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
+    | _ -> ()
+  ) cls.features;
+  Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
+  List.iter (function
+    | Routine r ->
+        let params =
+          String.concat ", " (List.map (fun p ->
+            sprintf "%s %s" (string_of_type p.param_type) p.param_name
+          ) r.params)
+        in
+        let signature =
+          if params = "" then
+            sprintf "void %s(%s* self);" r.name class_name
+          else
+            sprintf "void %s(%s* self, %s);" r.name class_name params
+        in
+        Buffer.add_string buf (signature ^ "\n")
+    | _ -> ()
+  ) cls.features;
+  Buffer.add_string buf ("\n#endif // RIVAR_H\n");
+  Buffer.contents buf
 
 let gen_class cls =
   let class_name = String.uppercase_ascii cls.class_name in

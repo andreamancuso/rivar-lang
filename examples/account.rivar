@@ -8,7 +8,13 @@ feature
         do
             this->balance = this->balance + amount
         ensure
-            balance == old balance + amount
+            this->balance == old this->balance + amount
         end
 
+    withdraw(amount: INTEGER): BOOLEAN
+        do
+            return true
+        ensure
+            result == true
+        end
 end

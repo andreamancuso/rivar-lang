@@ -42,6 +42,7 @@ end
 %token PRINT
 %token ARROW
 %token THIS
+%token RETURN
 %token <string> STRINGLIT
 %token <string> INT
 
@@ -76,6 +77,17 @@ feature_decl:
   | IDENT COLON type_expr {
       VarEnv.add_field $1;
       Field($1, $3)
+  }
+  | IDENT LPAREN param_list RPAREN COLON type_expr routine_body {
+      let body_block = $7 in
+      Routine {
+        name = $1;
+        params = $3;
+        return_type = Some $6;
+        require = body_block.req;
+        body = body_block.body;
+        ensure = body_block.ens;
+      }
   }
   | IDENT LPAREN param_list RPAREN routine_body {
       let body_block = $5 in
@@ -126,6 +138,8 @@ stmt:
   | IDENT ASSIGN expr { Assign(Var(VarEnv.classify $1, $1), $3) }
   | THIS ARROW IDENT ASSIGN expr { Assign(Var(Field, $3), $5) }
   | PRINT LPAREN expr RPAREN { Print($3) }
+  | RETURN expr { Return (Some $2) }
+  | RETURN       { Return None }
 
 expr:
   | INT { IntLit(int_of_string $1) }

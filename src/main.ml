@@ -34,6 +34,7 @@ let string_of_token = function
   | Parser.COMMA -> "COMMA"
   | Parser.ARROW -> "ARROW"
   | Parser.THIS -> "THIS"
+  | Parser.RETURN -> "RETURN"
   | Parser.IDENT s -> "IDENT(" ^ s ^ ")"
   | Parser.INT s -> "INT(" ^ s ^ ")"
 

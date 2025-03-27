@@ -21,6 +21,7 @@ rule token = parse
   | ":"         { COLON }
   | "="         { ASSIGN }
   | "this"      { THIS }
+  | "return"    { RETURN }
   | "->"        { ARROW }
   | "+"         { PLUS }
   | "-"         { MINUS }
