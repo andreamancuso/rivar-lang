@@ -4,15 +4,6 @@
 
 It is being built from scratch in OCaml, designed to bring native **Design by Contract (DbC)** to the modern developer's toolbox.
 
-## Why Rivar?
-
-Rivar is a minimal, principled programming language rooted in Design by Contract.
-
-> Its name evokes the image of a river shaped by its banks—
-> fluid, powerful, and guided with purpose.
-> In Rivar, code flows clearly within the boundaries of contracts,
-> ensuring correctness by design and elegance in execution.
-
 ---
 
 ## Quick Start
