@@ -6,9 +6,9 @@ feature
     deposit(amount: INTEGER)
         require amount > 0
         do
-            balance := balance + amount
+            this->balance = this->balance + amount
         ensure
-            balance = old balance + amount
+            balance == old balance + amount
         end
 
 end

@@ -8,18 +8,25 @@ let rec string_of_expr = function
   | Var (Param, name) -> name
   | Var (Local, name) -> name
   | Old name -> "old_" ^ name
+  | BinOp (Eq, a, b) ->
+      (match a, b with
+       | StringLit _, _
+       | _, StringLit _
+       | Var (_, _), Var (_, _) -> sprintf "strcmp(%s, %s) == 0" (string_of_expr a) (string_of_expr b)
+       | _ -> sprintf "(%s == %s)" (string_of_expr a) (string_of_expr b))
+  | BinOp (Neq, a, b) ->
+      (match a, b with
+       | StringLit _, _
+       | _, StringLit _
+       | Var (_, _), Var (_, _) -> sprintf "strcmp(%s, %s) != 0" (string_of_expr a) (string_of_expr b)
+       | _ -> sprintf "(%s != %s)" (string_of_expr a) (string_of_expr b))
   | BinOp (op, a, b) ->
-    let op_str = match op with
-      | Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
-      | Eq -> "==" | Neq -> "!=" | Gt -> ">" | Lt -> "<"
-      | Ge -> ">=" | Le -> "<=" | And -> "&&" | Or -> "||"
-    in
-    (match (a, b) with
-     | (Var (Field, x), Old y) when x = y && op = Eq ->
-         sprintf "strcmp(self->%s, old_%s) == 0" x y
-     | (Old x, Var (Field, y)) when x = y && op = Eq ->
-         sprintf "strcmp(old_%s, self->%s) == 0" x y
-     | _ -> "(" ^ string_of_expr a ^ " " ^ op_str ^ " " ^ string_of_expr b ^ ")")
+      let op_str = match op with
+        | Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
+        | Gt -> ">" | Lt -> "<" | Ge -> ">=" | Le -> "<=" | And -> "&&" | Or -> "||"
+        | _ -> "/* unknown op */"
+      in
+      "(" ^ string_of_expr a ^ " " ^ op_str ^ " " ^ string_of_expr b ^ ")"
   | _ -> "/* unsupported expr */"
 
 let string_of_type = function
@@ -27,12 +34,17 @@ let string_of_type = function
   | TypeBoolean -> "bool"
   | TypeString -> "const char*"
 
-let gen_stmt = function
-  | Assign (name, expr) ->
-      sprintf("    self->%s = %s;\n") name (string_of_expr expr)
+  let gen_stmt = function
+  | Assign (Var(_, name), expr) ->
+      (match expr with
+       | StringLit _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_expr expr)
+       | _ -> sprintf "    self->%s = %s;\n" name (string_of_expr expr))
+  | Assign (lhs, rhs) ->
+      sprintf "    %s = %s;\n" (string_of_expr lhs) (string_of_expr rhs)
   | Print expr ->
-      sprintf("    printf(\"%%s\\n\", %s);\n") (string_of_expr expr)
+      sprintf "    printf(\"%%s\\n\", %s);\n" (string_of_expr expr)
   | _ -> "    /* unsupported stmt */\n"
+
 
 let gen_routine class_name r cls_fields =
   let param_list =
@@ -116,8 +128,7 @@ let gen_class cls =
   let buf = Buffer.create 256 in
 
   Buffer.add_string buf "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n\n";
-  Buffer.add_string buf (sprintf "typedef struct {
-");
+  Buffer.add_string buf (sprintf "typedef struct {\n");
   List.iter (function
     | Field(name, t) ->
         Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)

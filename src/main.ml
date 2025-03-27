@@ -1,6 +1,47 @@
 open Ast
 open Codegen
 
+let string_of_token = function
+  | Parser.CLASS -> "CLASS"
+  | Parser.END -> "END"
+  | Parser.FEATURE -> "FEATURE"
+  | Parser.COLON -> "COLON"
+  | Parser.STRINGLIT s -> "STRINGLIT(" ^ s ^ ")"
+  | Parser.TYPE_INTEGER -> "TYPE_INTEGER"
+  | Parser.TYPE_BOOLEAN -> "TYPE_BOOLEAN"
+  | Parser.TYPE_STRING -> "TYPE_STRING"
+  | Parser.REQUIRE -> "REQUIRE"
+  | Parser.DO -> "DO"
+  | Parser.ENSURE -> "ENSURE"
+  | Parser.LPAREN -> "LPAREN"
+  | Parser.RPAREN -> "RPAREN"
+  | Parser.PLUS -> "PLUS"
+  | Parser.MINUS -> "MINUS"
+  | Parser.STAR -> "STAR"
+  | Parser.SLASH -> "SLASH"
+  | Parser.GT -> "GT"
+  | Parser.LT -> "LT"
+  | Parser.EQ -> "EQ"
+  | Parser.OR -> "OR"
+  | Parser.AND -> "AND"
+  | Parser.NEQ -> "NEQ"
+  | Parser.LE -> "LE"
+  | Parser.GE -> "GE"
+  | Parser.ASSIGN -> "ASSIGN"
+  | Parser.OLD -> "OLD"
+  | Parser.PRINT -> "PRINT"
+  | Parser.EOF -> "EOF"
+  | Parser.COMMA -> "COMMA"
+  | Parser.ARROW -> "ARROW"
+  | Parser.THIS -> "THIS"
+  | Parser.IDENT s -> "IDENT(" ^ s ^ ")"
+  | Parser.INT s -> "INT(" ^ s ^ ")"
+
+
+let rec dump_tokens lexbuf =
+  let tok = Lexer.token lexbuf in
+  Printf.printf "Token: %s\n%!" (string_of_token tok);
+  if tok <> Parser.EOF then dump_tokens lexbuf
 
 let string_of_type = function
   | TypeInteger -> "INTEGER"
@@ -21,7 +62,7 @@ let rec string_of_expr = function
   | BinOp (op, lhs, rhs) ->
       let op_str = match op with
         | Add -> "+" | Sub -> "-" | Mul -> "*" | Div -> "/"
-        | Eq -> "=" | Neq -> "!=" | Gt -> ">" | Lt -> "<"
+        | Eq -> "==" | Neq -> "!=" | Gt -> ">" | Lt -> "<"
         | Ge -> ">=" | Le -> "<=" | And -> "and" | Or -> "or"
       in
       "(" ^ string_of_expr lhs ^ " " ^ op_str ^ " " ^ string_of_expr rhs ^ ")"
@@ -33,8 +74,9 @@ let rec string_of_expr = function
       string_of_expr target ^ "." ^ name ^ "(" ^ String.concat ", " arg_strs ^ ")"
 
 let rec print_stmt indent = function
-  | Assign (name, expr) ->
-      Printf.printf "%sAssign: %s := %s\n" indent name (string_of_expr expr)
+  | Assign (lhs, rhs) ->
+    Printf.printf "%sAssign: %s = %s\n" indent
+      (string_of_expr lhs) (string_of_expr rhs)
   | If (cond, then_branch, else_branch) ->
       Printf.printf "%sIf: %s\n" indent (string_of_expr cond);
       List.iter (print_stmt (indent ^ "  ")) then_branch;
@@ -61,6 +103,9 @@ let () =
   let filename = Sys.argv.(1) in
   let in_chan = open_in filename in
   let lexbuf = Lexing.from_channel in_chan in
+
+  (* dump_tokens lexbuf; *)
+
   let ast =
     try
       Parser.program Lexer.token lexbuf

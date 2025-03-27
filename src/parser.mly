@@ -39,6 +39,10 @@ end
 %token AND OR
 %token EOF
 %token COMMA
+%token PRINT
+%token ARROW
+%token THIS
+%token <string> STRINGLIT
 %token <string> INT
 
 %start <Ast.program> program
@@ -119,12 +123,15 @@ stmt_list:
   | stmt stmt_list { $1 :: $2 }
 
 stmt:
-  | IDENT ASSIGN expr { Assign($1, $3) }
+  | IDENT ASSIGN expr { Assign(Var(VarEnv.classify $1, $1), $3) }
+  | THIS ARROW IDENT ASSIGN expr { Assign(Var(Field, $3), $5) }
+  | PRINT LPAREN expr RPAREN { Print($3) }
 
 expr:
   | INT { IntLit(int_of_string $1) }
   | IDENT { Var (VarEnv.classify $1, $1) }
-  | OLD IDENT { Old($2) }
+  | OLD THIS ARROW IDENT { Old($4) }
+  | STRINGLIT { StringLit($1) }
   | expr PLUS expr { BinOp(Add, $1, $3) }
   | expr MINUS expr { BinOp(Sub, $1, $3) }
   | expr STAR expr { BinOp(Mul, $1, $3) }
@@ -137,7 +144,7 @@ expr:
   | expr NEQ expr { BinOp(Neq, $1, $3) }
   | expr AND expr { BinOp(And, $1, $3) }
   | expr OR expr  { BinOp(Or, $1, $3) }
-
+  | THIS ARROW IDENT { Var(Field, $3) }
 
 type_expr:
   | TYPE_INTEGER { TypeInteger }

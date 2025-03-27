@@ -27,7 +27,7 @@ type expr =
   | Old of string
 
 type stmt =
-  | Assign of string * expr
+  | Assign of expr * expr
   | If of expr * stmt list * stmt list option
   | While of expr * stmt list
   | Return of expr option
