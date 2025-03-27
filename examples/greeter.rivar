@@ -1,0 +1,22 @@
+class GREETER
+
+feature
+    name: STRING
+
+    set_name(new_name: STRING)
+        require new_name /= ""
+        do
+            this->name := new_name
+        ensure
+            this->name = old this->name
+        end
+
+    greet()
+        require this->name /= ""
+        do
+            print("Hello, " + this->name)
+        ensure
+            result = true
+        end
+
+end

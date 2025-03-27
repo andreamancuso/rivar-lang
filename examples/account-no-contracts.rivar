@@ -1,0 +1,11 @@
+class ACCOUNT
+
+feature
+    balance: INTEGER
+
+    deposit(amount: INTEGER)
+        do
+            balance := balance + amount
+        end
+
+end

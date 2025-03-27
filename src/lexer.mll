@@ -12,7 +12,10 @@ rule token = parse
   | "ensure"   { ENSURE }
   | "INTEGER"  { TYPE_INTEGER }
   | "BOOLEAN"  { TYPE_BOOLEAN }
+  | "STRING "  { TYPE_STRING }
   | "old"      { OLD }
+  | "and"     { AND }
+  | "or"      { OR }
   | ":"        { COLON }
   | ":="       { ASSIGN }
   | "+"        { PLUS }
@@ -20,9 +23,11 @@ rule token = parse
   | "*"        { STAR }
   | "/"        { SLASH }
   | "="        { EQ }
-  | "!="       { NEQ }
+  | "!=" | "/=" { NEQ }
   | ">"        { GT }
   | "<"        { LT }
+  | "<="       { LE }
+  | ">="       { GE }
   | "("        { LPAREN }
   | ")"        { RPAREN }
   | ","        { COMMA }

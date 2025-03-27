@@ -18,15 +18,25 @@ module VarEnv = struct
 end
 %}
 
+%left OR
+%left AND
+%nonassoc EQ NEQ
+%nonassoc LT GT LE GE
+%left PLUS MINUS
+%left STAR SLASH
+
 %token <string> IDENT
 %token CLASS END FEATURE COLON
 %token TYPE_INTEGER TYPE_BOOLEAN
+%token TYPE_STRING
 %token REQUIRE DO ENSURE
 %token LPAREN RPAREN
 %token PLUS MINUS STAR SLASH
 %token GT LT EQ NEQ
+%token LE GE
 %token ASSIGN
 %token OLD
+%token AND OR
 %token EOF
 %token COMMA
 %token <string> INT
@@ -87,8 +97,17 @@ param:
   }
 
 routine_body:
+  | DO stmt_list END {
+      { req = []; body = $2; ens = [] }
+  }
+  | REQUIRE expr_list DO stmt_list END {
+      { req = $2; body = $4; ens = [] }
+  }
+  | DO stmt_list ENSURE expr_list END {
+      { req = []; body = $2; ens = $4 }
+  }
   | REQUIRE expr_list DO stmt_list ENSURE expr_list END {
-    { req = $2; body = $4; ens = $6 }
+      { req = $2; body = $4; ens = $6 }
   }
 
 expr_list:
@@ -112,9 +131,15 @@ expr:
   | expr SLASH expr { BinOp(Div, $1, $3) }
   | expr GT expr { BinOp(Gt, $1, $3) }
   | expr LT expr { BinOp(Lt, $1, $3) }
+  | expr GE expr { BinOp(Ge, $1, $3) }
+  | expr LE expr { BinOp(Le, $1, $3) }
   | expr EQ expr { BinOp(Eq, $1, $3) }
   | expr NEQ expr { BinOp(Neq, $1, $3) }
+  | expr AND expr { BinOp(And, $1, $3) }
+  | expr OR expr  { BinOp(Or, $1, $3) }
+
 
 type_expr:
   | TYPE_INTEGER { TypeInteger }
   | TYPE_BOOLEAN { TypeBoolean }
+  | TYPE_STRING { TypeString }
