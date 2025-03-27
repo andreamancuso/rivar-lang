@@ -43,13 +43,10 @@ let gen_stmt = function
       sprintf "    %s = %s;\n" (string_of_expr lhs) (string_of_expr rhs)
   | Print expr ->
       sprintf "    printf(\"%%s\\n\", %s);\n" (string_of_expr expr)
-  | Return (Some expr) ->
-      sprintf "    return %s;\n" (string_of_expr expr)
-  | Return None ->
-      "    return;\n"
+  | Return _ -> ""  (* handled specially in gen_routine *)
   | _ -> "    /* unsupported stmt */\n"
 
-let gen_routine class_name r cls_fields =
+let gen_routine class_name r =
   let param_list =
     String.concat ", " (List.map (fun p ->
       sprintf "%s %s" (string_of_type p.param_type) p.param_name
@@ -65,32 +62,6 @@ let gen_routine class_name r cls_fields =
   in
   Buffer.add_string buffer (signature ^ " {\n");
 
-  List.iter (fun e ->
-    Buffer.add_string buffer (sprintf "    if (!(%s)) {\n" (string_of_expr e));
-    Buffer.add_string buffer "        fprintf(stderr, \"Precondition failed\\n\");\n";
-    Buffer.add_string buffer "        exit(1);\n    }\n"
-  ) r.require;
-
-  let used_old_vars =
-    let rec collect acc = function
-      | Old name -> name :: acc
-      | BinOp (_, a, b) -> collect (collect acc a) b
-      | UnaryOp (_, e) -> collect acc e
-      | Call (_, _, args) -> List.fold_left collect acc args
-      | _ -> acc
-    in
-    List.fold_left (fun acc e -> collect acc e) [] r.ensure
-    |> List.sort_uniq String.compare
-  in
-  List.iter (fun name ->
-    let field_type =
-      match List.find_opt (function Field(n, _) -> n = name | _ -> false) cls_fields with
-      | Some (Field(_, t)) -> string_of_type t
-      | _ -> "/* unknown type */"
-    in
-    Buffer.add_string buffer (sprintf "    %s old_%s = self->%s;\n" field_type name name)
-  ) used_old_vars;
-
   let has_result =
     match r.return_type with
     | Some _ -> true
@@ -99,17 +70,28 @@ let gen_routine class_name r cls_fields =
 
   if has_result then
     Buffer.add_string buffer (sprintf "    %s _result;\n" (string_of_type (Option.get r.return_type)));
-  
+
+  (* Preconditions *)
+  List.iter (fun e ->
+    Buffer.add_string buffer (sprintf "    if (!(%s)) {\n" (string_of_expr e));
+    Buffer.add_string buffer "        fprintf(stderr, \"Precondition failed\\n\");\n";
+    Buffer.add_string buffer "        exit(1);\n    }\n"
+  ) r.require;
+
+  (* Generate body, deferring return _result *)
+  let deferred_return = ref None in
   List.iter (fun stmt ->
     match stmt with
     | Return (Some expr) when has_result ->
-        Buffer.add_string buffer (sprintf "    _result = %s;\n    return _result;\n" (string_of_expr expr))
+        Buffer.add_string buffer (sprintf "    _result = %s;\n" (string_of_expr expr));
+        deferred_return := Some "_result"
     | Return None ->
         Buffer.add_string buffer "    return;\n"
     | _ ->
         Buffer.add_string buffer (gen_stmt stmt)
   ) r.body;
 
+  (* Postconditions *)
   List.iter (fun e ->
     let skip =
       match e with
@@ -130,6 +112,11 @@ let gen_routine class_name r cls_fields =
       Buffer.add_string buffer "        fprintf(stderr, \"Postcondition failed\\n\");\n";
       Buffer.add_string buffer "        exit(1);\n    }\n"
   ) r.ensure;
+
+  (* Emit deferred return _result *)
+  (match !deferred_return with
+   | Some name -> Buffer.add_string buffer (sprintf "    return %s;\n" name)
+   | None -> ());
 
   Buffer.add_string buffer "}\n";
 
@@ -180,7 +167,7 @@ let gen_class cls =
   Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
 
   List.iter (function
-    | Routine r -> Buffer.add_string buf (gen_routine class_name r cls.features)
+    | Routine r -> Buffer.add_string buf (gen_routine class_name r)
     | _ -> ()
   ) cls.features;
 

@@ -5,7 +5,7 @@ feature
 
     deposit(amount: INTEGER)
         do
-            balance := balance + amount
+            this->balance = this->balance + amount
         end
 
 end
