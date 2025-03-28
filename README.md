@@ -89,8 +89,6 @@ rivar/
 │   ├── codegen.ml         # IR -> C code generation
 │   ├── typecheck.ml       # Type checker (WIP)
 │   └── main.ml            # CLI compiler entry point (`rivarc`)
-├── runtime/
-│   └── runtime.c          # (Optional) contract support / utilities
 ├── examples/
 │   ├── account.rivar      # Sample Rivar class
 │   ├── greeter.rivar      # Sample Rivar class with strings
