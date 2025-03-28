@@ -8,6 +8,8 @@ It is being [built from scratch in OCaml](https://dev.realworldocaml.org/parsing
 
 ## Quick Start
 
+So far this has been tested only on Ubuntu 24.04.
+
 ### Prerequisites
 
 - OCaml (recommended via [opam](https://opam.ocaml.org))
