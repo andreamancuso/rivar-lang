@@ -85,7 +85,6 @@ rivar/
 │   ├── irgen.ml           # AST -> IR lowering
 │   ├── lexer.mll          # OCamllex lexer
 │   ├── parser.mly         # Menhir parser
-│   ├── parser_support.ml  # Parser helper module (e.g., VarEnv)
 │   ├── codegen.ml         # IR -> C code generation
 │   ├── typecheck.ml       # Type checker (WIP)
 │   └── main.ml            # CLI compiler entry point (`rivarc`)

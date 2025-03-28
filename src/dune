@@ -1,6 +1,6 @@
 (executable
  (name main)
- (modules ast ir irgen lexer parser_support parser typecheck codegen main)
+ (modules ast ir irgen lexer parser typecheck codegen main)
  (libraries ))
 
 (menhir
