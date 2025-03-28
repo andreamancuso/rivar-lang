@@ -26,8 +26,8 @@ dune build
 
 ### Run
 
-- Generate C code from Rivar source: `./_build/default/src/main.exe account.rivar`
-- Compile generated C code: `gcc -std=c99 -o account account.c -I. librivar.c`
+- Generate C code from Rivar source: `./_build/default/src/main.exe greeter.rivar`
+- Compile generated C code: `gcc -std=c99 -o test test-greeter.c ../out.c -lgc`
 
 
 ### Example

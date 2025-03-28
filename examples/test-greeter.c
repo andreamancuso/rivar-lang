@@ -1,7 +1,10 @@
 #include "../out.h"
 #include <stdio.h>
+#include <gc.h>
 
 int main() {
+    GC_init();
+
     GREETER g = { .name = "" };
 
     // Try greeting without a name — should fail

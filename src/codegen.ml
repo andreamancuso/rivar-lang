@@ -38,7 +38,7 @@ let string_of_type = function
 let gen_stmt = function
   | Assign (Var(_, name), expr) ->
       (match expr with
-       | StringLit _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_expr expr)
+       | StringLit _ -> sprintf "    self->%s = GC_strdup(%s);\n" name (string_of_expr expr)
        | _ -> sprintf "    self->%s = %s;\n" name (string_of_expr expr))
   | Assign (lhs, rhs) ->
       sprintf "    %s = %s;\n" (string_of_expr lhs) (string_of_expr rhs)
@@ -167,10 +167,10 @@ let gen_ast_routine class_name r =
 
 let emit_stmt = function
   | IR_Assign (IR_Field name, IR_Var src) ->
-      sprintf "    self->%s = strdup(%s);\n" name src
+      sprintf "    self->%s = GC_strdup(%s);\n" name src
   | IR_Assign (IR_Field name, expr) ->
       (match expr with
-       | IR_String _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_ir_expr expr)
+       | IR_String _ -> sprintf "    self->%s = GC_strdup(%s);\n" name (string_of_ir_expr expr)
        | _ -> sprintf "    self->%s = %s;\n" name (string_of_ir_expr expr))
   | IR_Assign (lhs, rhs) ->
       sprintf "    %s = %s;\n" (string_of_ir_expr lhs) (string_of_ir_expr rhs)
@@ -303,7 +303,7 @@ let gen_class cls =
     let buf = Buffer.create 256 in
   
     (* Headers *)
-    Buffer.add_string buf "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n\n";
+    Buffer.add_string buf "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n#include <gc.h>\n\n";
   
     (* Struct definition *)
     Buffer.add_string buf (sprintf "typedef struct {\n");
