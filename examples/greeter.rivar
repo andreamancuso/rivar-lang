@@ -8,7 +8,7 @@ feature
         do
             this->name = new_name
         ensure
-            this->name == old this->name
+            this->name != old this->name
         end
 
     greet()

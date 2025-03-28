@@ -8,7 +8,7 @@ int main() {
     GREETER g = { .name = "" };
 
     // Try greeting without a name — should fail
-    printf("Calling greet() without a name...\n");
+    // printf("Calling greet() without a name...\n");
     // greet(&g);  // should trigger precondition failure
 
     // Set a valid name
