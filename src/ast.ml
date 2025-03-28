@@ -47,6 +47,13 @@ type routine = {
   ensure : expr list;
 }
 
+type routine_body = {
+  req : expr list;
+  body : stmt list;
+  ens : expr list;
+}
+
+
 type feature_decl =
   | Field of string * type_expr
   | Routine of routine

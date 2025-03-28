@@ -123,7 +123,7 @@ let gen_ast_routine class_name r =
 
   Buffer.contents buffer
 
-let rec string_of_ir_expr = function
+  let rec string_of_ir_expr = function
   | IR_Int i -> string_of_int i
   | IR_Bool b -> if b then "true" else "false"
   | IR_String s -> sprintf "\"%s\"" s
@@ -132,19 +132,42 @@ let rec string_of_ir_expr = function
   | IR_OldField name -> "old_" ^ name
   | IR_Result -> "_result"
   | IR_UnOp (op, e) -> sprintf "(%s%s)" op (string_of_ir_expr e)
+  | IR_Call (fn, args) ->
+      sprintf "%s(%s)" fn (String.concat ", " (List.map string_of_ir_expr args))
+  | IR_BinOp (IR_Eq, IR_Result, IR_Bool true) -> "_result"
+  | IR_BinOp (IR_Eq, IR_Bool true, IR_Result) -> "_result"
+  | IR_BinOp (IR_Eq, IR_Result, IR_Bool false) -> "!_result"
+  | IR_BinOp (IR_Eq, IR_Bool false, IR_Result) -> "!_result"
+  | IR_BinOp (IR_Eq, a, b)
+  | IR_BinOp (IR_Neq, a, b) as expr ->
+      let cmp = match expr with
+        | IR_BinOp (IR_Eq, _, _) -> "== 0"
+        | IR_BinOp (IR_Neq, _, _) -> "!= 0"
+        | _ -> assert false
+      in
+      let is_str_like = function
+        | IR_String _ | IR_Field _ | IR_OldField _ | IR_Var _ -> true
+        | _ -> false
+      in
+      if is_str_like a && is_str_like b then
+        sprintf "strcmp(%s, %s) %s" (string_of_ir_expr a) (string_of_ir_expr b) cmp
+      else
+        let op_str = if cmp = "== 0" then "==" else "!=" in
+        sprintf "(%s %s %s)" (string_of_ir_expr a) op_str (string_of_ir_expr b)
+
   | IR_BinOp (op, a, b) ->
       let op_str = match op with
         | IR_Add -> "+" | IR_Sub -> "-" | IR_Mul -> "*" | IR_Div -> "/"
-        | IR_Eq -> "==" | IR_Neq -> "!="
         | IR_Gt -> ">" | IR_Lt -> "<" | IR_Ge -> ">=" | IR_Le -> "<="
         | IR_And -> "&&" | IR_Or -> "||"
+        | _ -> "/* unknown op */"
       in
       sprintf "(%s %s %s)" (string_of_ir_expr a) op_str (string_of_ir_expr b)
-  | IR_Call (fn, args) ->
-      sprintf "%s(%s)" fn (String.concat ", " (List.map string_of_ir_expr args))
 
 
 let emit_stmt = function
+  | IR_Assign (IR_Field name, IR_Var src) ->
+      sprintf "    self->%s = strdup(%s);\n" name src
   | IR_Assign (IR_Field name, expr) ->
       (match expr with
        | IR_String _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_ir_expr expr)
@@ -169,7 +192,8 @@ let emit_stmt = function
       "    /* unsupported IR stmt */\n"
 
 
-let gen_ir_routine class_name name params return_type ir_body =
+let gen_ir_routine class_name name params return_type cls_fields ir_body =
+
   let buffer = Buffer.create 256 in
 
   let param_list =
@@ -189,7 +213,6 @@ let gen_ir_routine class_name name params return_type ir_body =
   if Option.is_some return_type then
     Buffer.add_string buffer (sprintf "    %s _result;\n" (Option.get return_type));
 
-  (* Collect used old fields from the IR body *)
   let used_old_fields =
     let rec collect acc = function
       | IR_Assert (_, cond) -> collect_expr acc cond
@@ -204,10 +227,14 @@ let gen_ir_routine class_name name params return_type ir_body =
     List.fold_left collect [] ir_body
     |> List.sort_uniq String.compare
   in
-
+  
   List.iter (fun name ->
-    (* For now, default type to int32_t *)
-    Buffer.add_string buffer (sprintf "    int32_t old_%s = self->%s;\n" name name)
+    let field_type =
+      match List.find_opt (function Field(n, _) -> n = name | _ -> false) cls_fields with
+      | Some (Field(_, t)) -> string_of_type t
+      | _ -> "/* unknown type */"
+    in
+    Buffer.add_string buffer (sprintf "    %s old_%s = self->%s;\n" field_type name name)
   ) used_old_fields;
 
   List.iter (fun stmt ->
@@ -299,18 +326,41 @@ let gen_class cls =
           let param_list = List.map (fun p -> (c_type_of p.param_type, p.param_name)) params in
           let ret_type = Option.map c_type_of return_type in
 
+          let contains_result e =
+            let rec check = function
+              | IR_Result -> true
+              | IR_BinOp (_, a, b) -> check a || check b
+              | IR_UnOp (_, e) -> check e
+              | IR_Call (_, args) -> List.exists check args
+              | _ -> false
+            in
+            check (Irgen.to_ir_expr e)
+          in
+
+          let filtered_ensures =
+            if Option.is_some return_type then ensure
+            else List.filter (fun e -> not (contains_result e)) ensure
+          in
+
           let ir_body =
             List.map (fun e -> IR_Assert ("Precondition", Irgen.to_ir_expr e)) require
             @ List.map Irgen.to_ir_stmt body
-            @ List.map (fun e -> IR_Assert ("Postcondition", Irgen.to_ir_expr e)) ensure
+            @ List.map (fun e -> IR_Assert ("Postcondition", Irgen.to_ir_expr e)) filtered_ensures
           in
 
-          let routine_code = gen_ir_routine class_name name param_list ret_type ir_body in
+          let routine_code =
+            gen_ir_routine
+              class_name
+              name
+              param_list
+              ret_type
+              cls.features
+              ir_body
+          in
           Buffer.add_string buf routine_code
 
       | _ -> ()
     ) cls.features;
-
   
     Buffer.contents buf
   

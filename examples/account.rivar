@@ -12,9 +12,11 @@ feature
         end
 
     withdraw(amount: INTEGER): BOOLEAN
+        require this->balance >= amount
         do
+            this->balance = this->balance - amount
             return true
         ensure
-            result == true
+            this->balance == old this->balance - amount
         end
 end

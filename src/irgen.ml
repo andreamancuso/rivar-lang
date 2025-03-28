@@ -12,6 +12,12 @@ let rec to_ir_expr = function
   | Old name -> IR_OldField name
   | UnaryOp (Not, e) -> IR_UnOp ("!", to_ir_expr e)
   | UnaryOp (Neg, e) -> IR_UnOp ("-", to_ir_expr e)
+  | BinOp (Eq, Var (_, "result"), BoolLit true)
+  | BinOp (Eq, BoolLit true, Var (_, "result")) ->
+    IR_Result
+  | BinOp (Eq, Var (_, "result"), BoolLit false)
+  | BinOp (Eq, BoolLit false, Var (_, "result")) ->
+    IR_UnOp ("!", IR_Result)
   | BinOp (op, a, b) ->
       let map_op = function
         | Add -> IR_Add | Sub -> IR_Sub | Mul -> IR_Mul | Div -> IR_Div

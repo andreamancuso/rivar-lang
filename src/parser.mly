@@ -1,6 +1,5 @@
 %{
 open Ast
-open Parser_support
 
 module VarEnv = struct
   let params = ref []
@@ -47,7 +46,19 @@ end
 %token <string> INT
 
 %start <Ast.program> program
-
+%type <Ast.class_decl> class_decl
+%type <Ast.class_decl list> class_decl_list
+%type <Ast.feature_decl list> feature_list
+%type <Ast.feature_decl> feature_decl
+%type <Ast.expr> expr
+%type <Ast.expr list> expr_list
+%type <Ast.stmt list> stmt_list
+%type <Ast.stmt> stmt
+%type <Ast.param> param
+%type <Ast.param list> param_list
+%type <Ast.type_expr> type_expr
+%type <Ast.routine_body> routine_body
+%type <Ast.feature_decl list> feature_block
 %%
 
 program:
@@ -114,17 +125,18 @@ param:
 
 routine_body:
   | DO stmt_list END {
-      { req = []; body = $2; ens = [] }
+      ({ req = []; body = $2; ens = [] } : Ast.routine_body)
   }
   | REQUIRE expr_list DO stmt_list END {
-      { req = $2; body = $4; ens = [] }
+      ({ req = $2; body = $4; ens = [] } : Ast.routine_body)
   }
   | DO stmt_list ENSURE expr_list END {
-      { req = []; body = $2; ens = $4 }
+      ({ req = []; body = $2; ens = $4 } : Ast.routine_body)
   }
   | REQUIRE expr_list DO stmt_list ENSURE expr_list END {
-      { req = $2; body = $4; ens = $6 }
+      ({ req = $2; body = $4; ens = $6 } : Ast.routine_body)
   }
+
 
 expr_list:
   | expr { [$1] }
@@ -135,11 +147,27 @@ stmt_list:
   | stmt stmt_list { $1 :: $2 }
 
 stmt:
+  | IDENT MINUS ASSIGN expr { 
+      let var = Var (VarEnv.classify $1, $1) in
+      Assign (var, BinOp (Sub, var, $4)) 
+    }
+  | IDENT PLUS ASSIGN expr { 
+      let var = Var (VarEnv.classify $1, $1) in
+      Assign (var, BinOp (Add, var, $4)) 
+    }
+  | IDENT STAR ASSIGN expr { 
+      let var = Var (VarEnv.classify $1, $1) in
+      Assign (var, BinOp (Mul, var, $4)) 
+    }
+  | IDENT SLASH ASSIGN expr { 
+      let var = Var (VarEnv.classify $1, $1) in
+      Assign (var, BinOp (Div, var, $4)) 
+    }
   | IDENT ASSIGN expr { Assign(Var(VarEnv.classify $1, $1), $3) }
   | THIS ARROW IDENT ASSIGN expr { Assign(Var(Field, $3), $5) }
   | PRINT LPAREN expr RPAREN { Print($3) }
-  | RETURN expr { Return (Some $2) }
-  | RETURN       { Return None }
+  | RETURN expr            { Return (Some $2) }
+  | RETURN { Return None }
 
 expr:
   | INT { IntLit(int_of_string $1) }
