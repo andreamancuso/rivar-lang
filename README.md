@@ -108,7 +108,7 @@ rivar/
 ## Philosophy
 
 Rivar isn't about speed or syntax gimmicks. It's about **truth** in code.  
-Contracts aren't optional—they are the code.
+Contracts aren't optional: they are the code.
 
 ---
 
