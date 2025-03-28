@@ -2,7 +2,7 @@
 
 **Rivar** is a minimal, contract-first, class-based programming language inspired by Eiffel.
 
-It is being built from scratch in OCaml, designed to bring native **Design by Contract (DbC)** to the modern developer's toolbox.
+It is being [built from scratch in OCaml](https://dev.realworldocaml.org/parsing-with-ocamllex-and-menhir.html), designed to bring native **Design by Contract (DbC)** to the modern developer's toolbox.
 
 ---
 
@@ -26,24 +26,47 @@ dune build
 
 ### Run
 
-- Generate C code from Rivar source: `./_build/default/src/main.exe greeter.rivar`
-- Compile generated C code: `gcc -std=c99 -o test test-greeter.c ../out.c -lgc`
+#### Install Boehm GC
 
+```bash
+sudo apt-get install libgc-dev
+```
 
-### Example
+#### Compile and Test
+
+- Generate C code from Rivar source:
+  ```bash
+  ./_build/default/src/main.exe examples/greeter.rivar
+  ```
+- Compile generated C code with Boehm GC:
+  ```bash
+  gcc -std=c99 -o test examples/test-greeter.c out.c -lgc
+  ```
+
+---
+
+## Example
 
 ```rivar
-class ACCOUNT
+class GREETER
 
 feature
-    balance: INTEGER
+    name: STRING
 
-    deposit(amount: INTEGER)
-        require amount > 0
+    set_name(new_name: STRING)
+        require new_name != ""
         do
-            balance := balance + amount
+            this->name = new_name
         ensure
-            balance = old balance + amount
+            this->name != old this->name
+        end
+
+    greet()
+        require this->name != ""
+        do
+            print(this->name)
+        ensure
+            result == true
         end
 
 end
@@ -56,15 +79,28 @@ end
 ```
 rivar/
 ├── src/
-│   ├── ast.ml          # Core AST types
-│   ├── lexer.mll       # OCamllex lexer
-│   ├── parser.mly      # Menhir parser
-│   ├── typecheck.ml    # Type checker (WIP)
-│   ├── codegen.ml      # C code generation
-│   └── main.ml         # CLI entry point
+│   ├── ast.ml             # Core [AST](https://en.wikipedia.org/wiki/Abstract_syntax_tree) definitions
+│   ├── ir.ml              # IR types ([Intermediate Representation](https://en.wikipedia.org/wiki/Intermediate_representation))
+│   ├── ir.mli             # IR interface
+│   ├── irgen.ml           # AST -> IR lowering
+│   ├── lexer.mll          # OCamllex lexer
+│   ├── parser.mly         # Menhir parser
+│   ├── parser_support.ml  # Parser helper module (e.g., VarEnv)
+│   ├── codegen.ml         # IR -> C code generation
+│   ├── typecheck.ml       # Type checker (WIP)
+│   └── main.ml            # CLI compiler entry point (`rivarc`)
 ├── runtime/
-│   └── runtime.c       # Contract violation handler
-└── account.rivar       # Sample test file
+│   └── runtime.c          # (Optional) contract support / utilities
+├── examples/
+│   ├── account.rivar      # Sample Rivar class
+│   ├── greeter.rivar      # Sample Rivar class with strings
+│   ├── test-account.c     # Test harness for `account.rivar`
+│   └── test-greeter.c     # Test harness for `greeter.rivar`
+├── out.c                  # Generated C output (from `rivarc`)
+├── out.h                  # Generated C header
+├── dune-project           # Dune project file
+├── .gitignore             # Ignores compiled artifacts and test binaries
+└── README.md              # You're looking at it
 ```
 
 ---
@@ -79,5 +115,4 @@ Contracts aren't optional—they are the code.
 ## License
 
 MIT
-
 
