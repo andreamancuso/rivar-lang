@@ -1,5 +1,6 @@
 open Ast
 open Codegen
+open Ir
 
 let string_of_token = function
   | Parser.CLASS -> "CLASS"
@@ -119,6 +120,29 @@ let () =
         exit 1
   in
   close_in in_chan;
+  
+  List.iter (fun cls ->
+    Printf.printf "Parsed class: %s\n" cls.class_name;
+    List.iter (function
+      | Field(name, t) ->
+          Printf.printf "  Field: %s : %s\n" name
+            (match t with
+             | TypeInteger -> "INTEGER"
+             | TypeBoolean -> "BOOLEAN"
+             | TypeString -> "STRING")
+      | Routine r ->
+          Printf.printf "  Routine: %s\n" r.name;
+          let ir_body = List.map Irgen.to_ir_stmt r.body in
+          List.iter (fun stmt ->
+            match stmt with
+            | IR_Assign _ -> Printf.printf "    [IR] assign\n"
+            | IR_Print _ -> Printf.printf "    [IR] print\n"
+            | IR_Return _ -> Printf.printf "    [IR] return\n"
+            | IR_Assert (kind, _) -> Printf.printf "    [IR] assert (%s)\n" kind
+            | _ -> Printf.printf "    [IR] other\n"
+          ) ir_body
+    ) cls.features
+  ) ast;
 
   List.iter (fun cls ->
     Printf.printf "Parsed class: %s\n" cls.class_name;
@@ -137,5 +161,19 @@ let () =
     ) cls.features
   ) ast;
 
-  generate_c_file ast "out.c";
-  generate_h_file ast "out.h";
+  (* generate_c_file ast "out.c"; *)
+  (* generate_h_file ast "out.h"; *)
+
+  let oc = open_out "out.c" in
+  List.iter (fun cls ->
+    let code = gen_class cls in
+    output_string oc code
+  ) ast;
+  close_out oc;
+
+  let h_out = open_out "out.h" in
+List.iter (fun cls ->
+  let hdr = gen_header cls in
+  output_string h_out hdr
+) ast;
+close_out h_out;

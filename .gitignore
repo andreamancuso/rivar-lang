@@ -25,5 +25,10 @@ src/lexer.ml
 # OCaml opam local switch
 .opam/
 
-*.c
-*.h
+# Ignore generated C files
+/out.c
+/out.h
+
+# Keep all authored test C files
+!examples/*.c
+

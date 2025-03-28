@@ -1,5 +1,6 @@
 open Ast
 open Printf
+open Ir
 
 let rec string_of_expr = function
   | IntLit i -> string_of_int i
@@ -46,7 +47,7 @@ let gen_stmt = function
   | Return _ -> ""  (* handled specially in gen_routine *)
   | _ -> "    /* unsupported stmt */\n"
 
-let gen_routine class_name r =
+let gen_ast_routine class_name r =
   let param_list =
     String.concat ", " (List.map (fun p ->
       sprintf "%s %s" (string_of_type p.param_type) p.param_name
@@ -122,56 +123,197 @@ let gen_routine class_name r =
 
   Buffer.contents buffer
 
+let rec string_of_ir_expr = function
+  | IR_Int i -> string_of_int i
+  | IR_Bool b -> if b then "true" else "false"
+  | IR_String s -> sprintf "\"%s\"" s
+  | IR_Var name -> name
+  | IR_Field name -> "self->" ^ name
+  | IR_OldField name -> "old_" ^ name
+  | IR_Result -> "_result"
+  | IR_UnOp (op, e) -> sprintf "(%s%s)" op (string_of_ir_expr e)
+  | IR_BinOp (op, a, b) ->
+      let op_str = match op with
+        | IR_Add -> "+" | IR_Sub -> "-" | IR_Mul -> "*" | IR_Div -> "/"
+        | IR_Eq -> "==" | IR_Neq -> "!="
+        | IR_Gt -> ">" | IR_Lt -> "<" | IR_Ge -> ">=" | IR_Le -> "<="
+        | IR_And -> "&&" | IR_Or -> "||"
+      in
+      sprintf "(%s %s %s)" (string_of_ir_expr a) op_str (string_of_ir_expr b)
+  | IR_Call (fn, args) ->
+      sprintf "%s(%s)" fn (String.concat ", " (List.map string_of_ir_expr args))
+
+
+let emit_stmt = function
+  | IR_Assign (IR_Field name, expr) ->
+      (match expr with
+       | IR_String _ -> sprintf "    self->%s = strdup(%s);\n" name (string_of_ir_expr expr)
+       | _ -> sprintf "    self->%s = %s;\n" name (string_of_ir_expr expr))
+  | IR_Assign (lhs, rhs) ->
+      sprintf "    %s = %s;\n" (string_of_ir_expr lhs) (string_of_ir_expr rhs)
+
+  | IR_Print expr ->
+      sprintf "    printf(\"%%s\\n\", %s);\n" (string_of_ir_expr expr)
+
+  | IR_Assert (label, cond) ->
+      sprintf "    if (!(%s)) {\n        fprintf(stderr, \"%s failed\\n\");\n        exit(1);\n    }\n"
+        (string_of_ir_expr cond) label
+
+  | IR_Return (Some expr) ->
+      sprintf "    _result = %s;\n" (string_of_ir_expr expr)
+
+  | IR_Return None ->
+      "    return;\n"
+
+  | _ ->
+      "    /* unsupported IR stmt */\n"
+
+
+let gen_ir_routine class_name name params return_type ir_body =
+  let buffer = Buffer.create 256 in
+
+  let param_list =
+    String.concat ", " (List.map (fun (typ, name) -> sprintf "%s %s" typ name) params)
+  in
+
+  let signature =
+    match return_type with
+    | Some typ -> sprintf "%s %s(%s* self%s%s)" typ name class_name
+                    (if param_list = "" then "" else ", ") param_list
+    | None -> sprintf "void %s(%s* self%s%s)" name class_name
+                (if param_list = "" then "" else ", ") param_list
+  in
+
+  Buffer.add_string buffer (signature ^ " {\n");
+
+  if Option.is_some return_type then
+    Buffer.add_string buffer (sprintf "    %s _result;\n" (Option.get return_type));
+
+  (* Collect used old fields from the IR body *)
+  let used_old_fields =
+    let rec collect acc = function
+      | IR_Assert (_, cond) -> collect_expr acc cond
+      | _ -> acc
+    and collect_expr acc = function
+      | IR_OldField name -> name :: acc
+      | IR_BinOp (_, a, b) -> collect_expr (collect_expr acc a) b
+      | IR_UnOp (_, e) -> collect_expr acc e
+      | IR_Call (_, args) -> List.fold_left collect_expr acc args
+      | _ -> acc
+    in
+    List.fold_left collect [] ir_body
+    |> List.sort_uniq String.compare
+  in
+
+  List.iter (fun name ->
+    (* For now, default type to int32_t *)
+    Buffer.add_string buffer (sprintf "    int32_t old_%s = self->%s;\n" name name)
+  ) used_old_fields;
+
+  List.iter (fun stmt ->
+    Buffer.add_string buffer (emit_stmt stmt)
+  ) ir_body;
+
+  if Option.is_some return_type then
+    Buffer.add_string buffer "    return _result;\n";
+
+  Buffer.add_string buffer "}\n";
+  Buffer.contents buffer
+      
+  
+
 let gen_header cls =
-  let class_name = String.uppercase_ascii cls.class_name in
-  let buf = Buffer.create 256 in
-  Buffer.add_string buf ("#ifndef RIVAR_H\n#define RIVAR_H\n\n");
-  Buffer.add_string buf ("#include <stdint.h>\n#include <stdbool.h>\n\n");
-  Buffer.add_string buf (sprintf "typedef struct {\n");
-  List.iter (function
-    | Field(name, t) ->
-        Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
-    | _ -> ()
-  ) cls.features;
-  Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
-  List.iter (function
-    | Routine r ->
-        let params =
-          String.concat ", " (List.map (fun p ->
-            sprintf "%s %s" (string_of_type p.param_type) p.param_name
-          ) r.params)
-        in
-        let signature =
-          if params = "" then
-            sprintf "void %s(%s* self);" r.name class_name
-          else
-            sprintf "void %s(%s* self, %s);" r.name class_name params
-        in
-        Buffer.add_string buf (signature ^ "\n")
-    | _ -> ()
-  ) cls.features;
-  Buffer.add_string buf ("\n#endif // RIVAR_H\n");
-  Buffer.contents buf
+    let class_name = String.uppercase_ascii cls.class_name in
+    let buf = Buffer.create 256 in
+  
+    Buffer.add_string buf "#ifndef RIVAR_H\n#define RIVAR_H\n\n";
+    Buffer.add_string buf "#include <stdint.h>\n#include <stdbool.h>\n\n";
+  
+    (* Struct *)
+    Buffer.add_string buf (sprintf "typedef struct {\n");
+    List.iter (function
+      | Field(name, t) ->
+          Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
+      | _ -> ()
+    ) cls.features;
+    Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
+  
+    (* Function declarations *)
+    List.iter (function
+      | Routine { name; params; return_type; _ } ->
+          let c_type_of = function
+            | TypeInteger -> "int32_t"
+            | TypeBoolean -> "bool"
+            | TypeString -> "const char*"
+          in
+  
+          let param_list =
+            List.map (fun p -> (c_type_of p.param_type, p.param_name)) params
+          in
+  
+          let param_str =
+            String.concat ", " (
+              (sprintf "%s* self" class_name) ::
+              List.map (fun (t, n) -> sprintf "%s %s" t n) param_list
+            )
+          in
+  
+          let sig_str =
+            match return_type with
+            | Some t -> sprintf "%s %s(%s);" (c_type_of t) name param_str
+            | None -> sprintf "void %s(%s);" name param_str
+          in
+  
+          Buffer.add_string buf (sig_str ^ "\n")
+      | _ -> ()
+    ) cls.features;
+  
+    Buffer.add_string buf "\n#endif // RIVAR_H\n";
+    Buffer.contents buf
 
 let gen_class cls =
-  let class_name = String.uppercase_ascii cls.class_name in
-  let buf = Buffer.create 256 in
+    let class_name = String.uppercase_ascii cls.class_name in
+    let buf = Buffer.create 256 in
+  
+    (* Headers *)
+    Buffer.add_string buf "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n\n";
+  
+    (* Struct definition *)
+    Buffer.add_string buf (sprintf "typedef struct {\n");
+    List.iter (function
+      | Field(name, t) ->
+          Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
+      | _ -> ()
+    ) cls.features;
+    Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
+  
+    (* Code for each routine *)
+    List.iter (function
+      | Routine { name; params; return_type; require; body; ensure } ->
+          let c_type_of = function
+            | TypeInteger -> "int32_t"
+            | TypeBoolean -> "bool"
+            | TypeString -> "const char*"
+          in
 
-  Buffer.add_string buf "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <string.h>\n\n";
-  Buffer.add_string buf (sprintf "typedef struct {\n");
-  List.iter (function
-    | Field(name, t) ->
-        Buffer.add_string buf (sprintf "    %s %s;\n" (string_of_type t) name)
-    | _ -> ()
-  ) cls.features;
-  Buffer.add_string buf (sprintf "} %s;\n\n" class_name);
+          let param_list = List.map (fun p -> (c_type_of p.param_type, p.param_name)) params in
+          let ret_type = Option.map c_type_of return_type in
 
-  List.iter (function
-    | Routine r -> Buffer.add_string buf (gen_routine class_name r)
-    | _ -> ()
-  ) cls.features;
+          let ir_body =
+            List.map (fun e -> IR_Assert ("Precondition", Irgen.to_ir_expr e)) require
+            @ List.map Irgen.to_ir_stmt body
+            @ List.map (fun e -> IR_Assert ("Postcondition", Irgen.to_ir_expr e)) ensure
+          in
 
-  Buffer.contents buf
+          let routine_code = gen_ir_routine class_name name param_list ret_type ir_body in
+          Buffer.add_string buf routine_code
+
+      | _ -> ()
+    ) cls.features;
+
+  
+    Buffer.contents buf
+  
 
 let generate_c_file (prog : program) (filename : string) =
   let oc = open_out filename in
