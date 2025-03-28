@@ -1,6 +1,6 @@
 # Rivar
 
-**Rivar** is a minimal, contract-first, class-based, garbage-collected programming language inspired by Eiffel.
+**Rivar** is a minimal, contract-first, class-based, [garbage-collected](https://en.wikipedia.org/wiki/Boehm_garbage_collector) programming language inspired by Eiffel.
 
 It is being [built from scratch in OCaml](https://dev.realworldocaml.org/parsing-with-ocamllex-and-menhir.html), designed to bring native **Design by Contract (DbC)** to the modern developer's toolbox.
 
